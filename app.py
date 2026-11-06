@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import mysql.connector
 from dotenv import load_dotenv
 import os
@@ -14,15 +14,32 @@ st.set_page_config(
 
 # ---------------- DATABASE ----------------
 
+def get_setting(key):
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key)
+
+
 def get_connection():
+    db_host = get_setting("DB_HOST")
+    db_port = get_setting("DB_PORT")
+    db_user = get_setting("DB_USER")
+    db_password = get_setting("DB_PASSWORD")
+    db_name = get_setting("DB_NAME")
+
+    if not all([db_host, db_port, db_user, db_password, db_name]):
+        raise ValueError("Database configuration is incomplete.")
+
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        port=int(os.getenv("DB_PORT")),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME"),
+        host=db_host,
+        port=int(db_port),
+        user=db_user,
+        password=db_password,
+        database=db_name,
         ssl_disabled=False
     )
+
 
 
 def execute_query(query, values=(), fetch=False):
