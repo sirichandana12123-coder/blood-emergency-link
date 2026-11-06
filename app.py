@@ -8,7 +8,7 @@ load_dotenv()
 
 st.set_page_config(
     page_title="Blood Emergency Link",
-    page_icon="🩸",
+    page_icon="Ã°Å¸Â©Â¸",
     layout="wide"
 )
 
@@ -91,8 +91,7 @@ h1, h2, h3 {
 
 # ---------------- SIDEBAR ----------------
 
-st.sidebar.title("🩸 Blood")
-st.sidebar.title("Emergency Link")
+st.sidebar.title("🩸 Blood Emergency Link")
 
 page = st.sidebar.radio(
     "Navigation",
@@ -158,7 +157,7 @@ if page == "Dashboard":
         "Connect blood donors with patients during emergency situations."
     )
 
-    if st.button("🔄 Refresh Dashboard"):
+    if st.button("Ã°Å¸â€â€ž Refresh Dashboard"):
         st.rerun()
 
 
@@ -366,17 +365,23 @@ elif page == "Find Donor":
 # BLOOD REQUEST
 # =========================================================
 
+
 elif page == "Blood Request":
 
     st.title("Blood Request")
 
     with st.form("request_form"):
 
-        recipient_id = st.number_input(
-            "Recipient ID",
+        patient_name = st.text_input("Patient Name")
+
+        patient_age = st.number_input(
+            "Patient Age",
             min_value=1,
+            max_value=120,
             step=1
         )
+
+        patient_phone = st.text_input("Contact Number")
 
         blood_group = st.selectbox(
             "Blood Group",
@@ -394,60 +399,115 @@ elif page == "Blood Request":
             ["Low", "Medium", "High", "Emergency"]
         )
 
-        bank_id = st.number_input(
-            "Blood Bank ID",
-            min_value=0,
-            step=1
+        banks = execute_query(
+            "SELECT bank_id, bank_name FROM Blood_Bank",
+            fetch=True
+        )
+
+        bank_options = {
+            f"{row[1]} (ID: {row[0]})": row[0]
+            for row in banks
+        }
+
+        selected_bank = st.selectbox(
+            "Select Blood Bank (Optional)",
+            ["None"] + list(bank_options.keys())
+        )
+
+        bank_id = (
+            bank_options[selected_bank]
+            if selected_bank != "None"
+            else None
         )
 
         submitted = st.form_submit_button("Submit Request")
 
         if submitted:
 
-            result = execute_query(
-                """
-                SELECT COALESCE(MAX(request_id), 0) + 1
-                FROM Blood_Request
-                """,
-                fetch=True
-            )
+            if not patient_name.strip() or not patient_phone.strip():
+                st.error("Please enter the patient name and contact number.")
 
-            request_id = result[0][0]
-
-            actual_bank_id = bank_id if bank_id > 0 else None
-
-            success = execute_query(
-                """
-                INSERT INTO Blood_Request
-                (
-                    request_id,
-                    recipient_id,
-                    blood_group,
-                    units_required,
-                    request_date,
-                    urgency,
-                    status,
-                    bank_id
+            else:
+                # Generate a new Recipient ID
+                recipient_result = execute_query(
+                    """
+                    SELECT COALESCE(MAX(recipient_id), 0) + 1
+                    FROM Recipient
+                    """,
+                    fetch=True
                 )
-                VALUES
-                (%s, %s, %s, %s, CURDATE(), %s, %s, %s)
-                """,
-                (
-                    request_id,
-                    recipient_id,
-                    blood_group,
-                    units,
-                    urgency,
-                    "Pending",
-                    actual_bank_id
-                )
-            )
 
-            if success:
-                st.success(
-                    f"Blood request submitted successfully! "
-                    f"Request ID: {request_id}"
+                recipient_id = recipient_result[0][0]
+
+                # Save patient details
+                recipient_success = execute_query(
+                    """
+                    INSERT INTO Recipient
+                    (recipient_id, name, age, blood_group, phone, hospital_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        recipient_id,
+                        patient_name.strip(),
+                        patient_age,
+                        blood_group,
+                        patient_phone.strip(),
+                        None
+                    )
                 )
+
+                if recipient_success:
+
+                    # Generate a new Request ID
+                    result = execute_query(
+                        """
+                        SELECT COALESCE(MAX(request_id), 0) + 1
+                        FROM Blood_Request
+                        """,
+                        fetch=True
+                    )
+
+                    request_id = result[0][0]
+
+                    # Save blood request
+                    success = execute_query(
+                        """
+                        INSERT INTO Blood_Request
+                        (
+                            request_id,
+                            recipient_id,
+                            blood_group,
+                            units_required,
+                            request_date,
+                            urgency,
+                            status,
+                            bank_id
+                        )
+                        VALUES
+                        (%s, %s, %s, %s, CURDATE(), %s, %s, %s)
+                        """,
+                        (
+                            request_id,
+                            recipient_id,
+                            blood_group,
+                            units,
+                            urgency,
+                            "Pending",
+                            bank_id
+                        )
+                    )
+
+                    if success:
+                        st.success(
+                            f"Blood request submitted successfully! "
+                            f"Request ID: {request_id}"
+                        )
+                    else:
+                        st.error("Recipient registered, but blood request failed.")
+
+                else:
+                    st.error("Recipient registration failed.")
+
 
 
 # =========================================================
@@ -464,7 +524,7 @@ elif page == "Request Management":
                units_required, request_date,
                urgency, status, bank_id
         FROM Blood_Request
-        ORDER BY request_id DESC
+        ORDER BY request_id ASC
         """,
         fetch=True
     )
@@ -541,7 +601,7 @@ elif page == "Match Donor":
         """
         SELECT request_id, blood_group, status
         FROM Blood_Request
-        ORDER BY request_id DESC
+        ORDER BY request_id ASC
         """,
         fetch=True
     )
@@ -558,7 +618,7 @@ elif page == "Match Donor":
             list(request_options.keys())
         )
 
-        if st.button("🔎 Find Matches"):
+        if st.button("Find Matches"):
 
             request_id = request_options[selected]
 
@@ -859,3 +919,5 @@ elif page == "About":
         "Actual blood transfusions require verification by qualified "
         "medical professionals."
     )
+
+
